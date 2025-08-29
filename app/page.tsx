@@ -3,9 +3,9 @@ import Link from 'next/link'
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between bg-white">
+    <main className="flex min-h-screen flex-col items-center justify-between">
       {/* Main Content */}
-      <div className="w-full min-h-screen flex flex-col items-center justify-center relative px-4">
+      <div className="w-full min-h-screen flex flex-col items-center justify-center relative px-4 bg-gradient-to-b from-gray-50 via-white to-gray-50">
         {/* Logo Section - Top Center */}
         <div className="mb-20 animate-fadeIn">
           <Image
