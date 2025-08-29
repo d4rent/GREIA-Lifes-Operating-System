@@ -21,11 +21,13 @@ model User {
   // Relations
   accounts      Account[]
   sessions      Session[]
-  properties    Property[]    @relation("PropertyOwner")
-  bookings      Booking[]
-  reviews       Review[]
+  listings      Listing[]     @relation("ListingOwner")
+  inquiries     Inquiry[]     @relation("InquiryCreator")
+  receivedInquiries Inquiry[] @relation("InquiryReceiver")
+  transactions  Transaction[] @relation("TransactionUser")
   messages      Message[]     @relation("MessageSender")
   receivedMessages Message[]  @relation("MessageReceiver")
+  notes         Note[]        @relation("NoteCreator")
 }
 
 model Account {
@@ -35,7 +37,7 @@ model Account {
   provider           String
   providerAccountId  String
   refresh_token      String?   @db.Text
-  access_token       String?   @db.Text
+  access_token      String?   @db.Text
   expires_at         Int?
   token_type        String?
   scope             String?
@@ -55,72 +57,66 @@ model Session {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model Property {
+model Listing {
   id          String    @id @default(cuid())
   title       String
   description String    @db.Text
-  price       Float
-  location    String
-  type        PropertyType
-  status      PropertyStatus @default(AVAILABLE)
-  amenities   String[]
+  type        ListingType
+  category    ListingCategory
+  status      ListingStatus @default(ACTIVE)
+  price       Float?
+  currency    String    @default("USD")
+  location    String?
   images      String[]
-  bedrooms    Int
-  bathrooms   Int
-  maxGuests   Int
+  features    Json?     // Flexible JSON field for different listing types
   ownerId     String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   // Relations
-  owner       User      @relation("PropertyOwner", fields: [ownerId], references: [id])
-  bookings    Booking[]
-  reviews     Review[]
+  owner       User        @relation("ListingOwner", fields: [ownerId], references: [id])
+  inquiries   Inquiry[]
+  transactions Transaction[]
+  notes       Note[]
 }
 
-model Booking {
+model Inquiry {
   id          String    @id @default(cuid())
-  startDate   DateTime
-  endDate     DateTime
-  totalPrice  Float
-  status      BookingStatus @default(PENDING)
-  userId      String
-  propertyId  String
+  type        InquiryType
+  status      InquiryStatus @default(PENDING)
+  message     String    @db.Text
+  listingId   String
+  creatorId   String
+  receiverId  String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   // Relations
-  user        User      @relation(fields: [userId], references: [id])
-  property    Property  @relation(fields: [propertyId], references: [id])
-  payment     Payment?
+  listing     Listing   @relation(fields: [listingId], references: [id])
+  creator     User      @relation("InquiryCreator", fields: [creatorId], references: [id])
+  receiver    User      @relation("InquiryReceiver", fields: [receiverId], references: [id])
+  transaction Transaction?
+  notes       Note[]
 }
 
-model Payment {
+model Transaction {
   id          String    @id @default(cuid())
+  type        TransactionType
+  status      TransactionStatus @default(PENDING)
   amount      Float
-  currency    String
-  status      PaymentStatus
-  stripeId    String?
-  bookingId   String    @unique
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  // Relations
-  booking     Booking   @relation(fields: [bookingId], references: [id])
-}
-
-model Review {
-  id          String    @id @default(cuid())
-  rating      Int
-  comment     String    @db.Text
+  currency    String    @default("USD")
+  listingId   String
   userId      String
-  propertyId  String
+  inquiryId   String?   @unique
+  stripeId    String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   // Relations
-  user        User      @relation(fields: [userId], references: [id])
-  property    Property  @relation(fields: [propertyId], references: [id])
+  listing     Listing   @relation(fields: [listingId], references: [id])
+  user        User      @relation("TransactionUser", fields: [userId], references: [id])
+  inquiry     Inquiry?  @relation(fields: [inquiryId], references: [id])
+  notes       Note[]
 }
 
 model Message {
@@ -137,37 +133,96 @@ model Message {
   receiver    User      @relation("MessageReceiver", fields: [receiverId], references: [id])
 }
 
+model Note {
+  id          String    @id @default(cuid())
+  content     String    @db.Text
+  type        NoteType
+  creatorId   String
+  listingId   String?
+  inquiryId   String?
+  transactionId String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  creator     User      @relation("NoteCreator", fields: [creatorId], references: [id])
+  listing     Listing?  @relation(fields: [listingId], references: [id])
+  inquiry     Inquiry?  @relation(fields: [inquiryId], references: [id])
+  transaction Transaction? @relation(fields: [transactionId], references: [id])
+}
+
 enum Role {
   USER
   HOST
   ADMIN
 }
 
-enum PropertyType {
-  HOUSE
-  APARTMENT
-  VILLA
-  PENTHOUSE
-  CHALET
+enum ListingType {
+  RENTAL           // Short/Long term rentals
+  SALE             // Property for sale
+  SERVICE          // Professional services
+  EVENT            // Events and experiences
+  PRODUCT          // Physical products
+  TICKET           // Event tickets
+  BOOKING          // Appointment/Service booking
 }
 
-enum PropertyStatus {
-  AVAILABLE
-  UNAVAILABLE
-  MAINTENANCE
+enum ListingCategory {
+  PROPERTY         // Real estate
+  AUTOMOTIVE       // Cars, boats, etc.
+  PROFESSIONAL     // Professional services
+  ENTERTAINMENT    // Events, shows
+  TRAVEL           // Travel packages
+  RETAIL           // Products
+  OTHER
+}
+
+enum ListingStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  SOLD
   ARCHIVED
 }
 
-enum BookingStatus {
-  PENDING
-  CONFIRMED
-  CANCELLED
-  COMPLETED
+enum InquiryType {
+  BOOKING_REQUEST
+  PURCHASE_INTENT
+  VIEWING_REQUEST
+  INFORMATION
+  OFFER
 }
 
-enum PaymentStatus {
+enum InquiryStatus {
   PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+  CONVERTED       // Converted to transaction
+}
+
+enum TransactionType {
+  RENTAL
+  SALE
+  SERVICE
+  TICKET
+  DEPOSIT
+  BOOKING
+}
+
+enum TransactionStatus {
+  PENDING
+  PROCESSING
   COMPLETED
   FAILED
   REFUNDED
+  CANCELLED
+}
+
+enum NoteType {
+  GENERAL
+  FOLLOWUP
+  MEETING
+  TASK
+  REMINDER
 }
