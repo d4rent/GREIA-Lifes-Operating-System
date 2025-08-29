@@ -1,18 +1,30 @@
+'use client'
+
 import { Metadata } from "next"
 import Image from "next/image"
 import Link from "next/link"
+import { useState } from "react"
+import { useAuth } from "@/app/contexts/auth-context"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-export const metadata: Metadata = {
-  title: "Sign In - GREIA",
-  description: "Sign in to your GREIA account",
-}
-
 export default function SignInPage() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const { signIn, error, loading } = useAuth()
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await signIn('credentials', { email, password })
+  }
+
+  const handleGoogleSignIn = () => {
+    signIn('google')
+  }
+
   return (
     <div className="container relative min-h-screen flex-col items-center justify-center grid lg:max-w-none lg:grid-cols-2 lg:px-0">
       <div className="relative hidden h-full flex-col bg-muted p-10 text-white lg:flex dark:border-r">
@@ -45,45 +57,71 @@ export default function SignInPage() {
                 Enter your email below to sign in to your account
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="m@example.com" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" />
-              </div>
-            </CardContent>
-            <CardFooter className="flex flex-col space-y-4">
-              <Button className="w-full">Sign In</Button>
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
+            <form onSubmit={handleSubmit}>
+              <CardContent className="space-y-4">
+                {error && (
+                  <div className="text-red-500 text-sm">{error}</div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="m@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
                 </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white px-2 text-muted-foreground">
-                    Or continue with
-                  </span>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
                 </div>
-              </div>
-              <Button variant="outline" className="w-full">
-                <Image
-                  src="/google.svg"
-                  alt="Google"
-                  width={16}
-                  height={16}
-                  className="mr-2"
-                />
-                Google
-              </Button>
-              <div className="text-center text-sm">
-                Don't have an account?{" "}
-                <Link href="/auth/signup" className="text-blue-600 hover:underline">
-                  Sign up
-                </Link>
-              </div>
-            </CardFooter>
+              </CardContent>
+              <CardFooter className="flex flex-col space-y-4">
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? 'Signing in...' : 'Sign In'}
+                </Button>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-white px-2 text-muted-foreground">
+                      Or continue with
+                    </span>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleGoogleSignIn}
+                  disabled={loading}
+                >
+                  <Image
+                    src="/google.svg"
+                    alt="Google"
+                    width={16}
+                    height={16}
+                    className="mr-2"
+                  />
+                  Google
+                </Button>
+                <div className="text-center text-sm">
+                  Don't have an account?{" "}
+                  <Link href="/auth/signup" className="text-blue-600 hover:underline">
+                    Sign up
+                  </Link>
+                </div>
+              </CardFooter>
+            </form>
           </Card>
         </div>
       </div>
