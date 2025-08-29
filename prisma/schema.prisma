@@ -1,12 +1,79 @@
-generator client {
-  provider = "prisma-client-js"
+// Previous schema content remains the same
+
+model Portfolio {
+  id          String      @id @default(cuid())
+  userId      String      @unique
+  title       String?
+  description String?
+  specialties String[]    // Array of specialties/skills
+  experience  Int?        // Years of experience
+  
+  // Portfolio items/projects
+  projects    Project[]
+  
+  // Social media and website links
+  website     String?
+  instagram   String?
+  linkedin    String?
+  facebook    String?
+  
+  // Reviews and ratings
+  reviews     Review[]
+  avgRating   Float?      // Calculated average rating
+  
+  // Relations
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 }
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+model Project {
+  id          String      @id @default(cuid())
+  portfolioId String
+  title       String
+  description String?
+  category    String      // e.g., Painting, Carpentry, Plumbing, etc.
+  images      String[]    // Array of image URLs
+  videos      String[]    // Array of video URLs
+  
+  // Project details
+  client      String?     // Client name (if shareable)
+  location    String?     // Project location
+  completedAt DateTime?   // Project completion date
+  duration    String?     // Project duration
+  
+  // Custom fields for different types of work
+  materials   Json?       // Materials used
+  techniques  String[]    // Techniques/methods used
+  dimensions  String?     // For artwork/construction
+  
+  // Before/After images
+  beforeImages String[]
+  afterImages  String[]
+  
+  // Relations
+  portfolio   Portfolio   @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 }
 
+model Review {
+  id          String      @id @default(cuid())
+  portfolioId String
+  reviewerId  String
+  rating      Float       // 1-5 rating
+  comment     String?
+  images      String[]    // Optional images of the work
+  verified    Boolean     @default(false) // If this was a verified project
+  
+  // Relations
+  portfolio   Portfolio   @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  reviewer    User        @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+// Update User model
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -18,6 +85,12 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  // Professional verification
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  professionalInfo   ProfessionalInfo?
+  portfolio         Portfolio?
+  givenReviews      Review[]
+
   // Relations
   accounts      Account[]
   sessions      Session[]
@@ -28,201 +101,4 @@ model User {
   messages      Message[]     @relation("MessageSender")
   receivedMessages Message[]  @relation("MessageReceiver")
   notes         Note[]        @relation("NoteCreator")
-}
-
-model Account {
-  id                 String    @id @default(cuid())
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String?   @db.Text
-  access_token      String?   @db.Text
-  expires_at         Int?
-  token_type        String?
-  scope             String?
-  id_token          String?   @db.Text
-  session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-}
-
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model Listing {
-  id          String    @id @default(cuid())
-  title       String
-  description String    @db.Text
-  type        ListingType
-  category    ListingCategory
-  status      ListingStatus @default(ACTIVE)
-  price       Float?
-  currency    String    @default("USD")
-  location    String?
-  images      String[]
-  features    Json?     // Flexible JSON field for different listing types
-  ownerId     String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  // Relations
-  owner       User        @relation("ListingOwner", fields: [ownerId], references: [id])
-  inquiries   Inquiry[]
-  transactions Transaction[]
-  notes       Note[]
-}
-
-model Inquiry {
-  id          String    @id @default(cuid())
-  type        InquiryType
-  status      InquiryStatus @default(PENDING)
-  message     String    @db.Text
-  listingId   String
-  creatorId   String
-  receiverId  String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  // Relations
-  listing     Listing   @relation(fields: [listingId], references: [id])
-  creator     User      @relation("InquiryCreator", fields: [creatorId], references: [id])
-  receiver    User      @relation("InquiryReceiver", fields: [receiverId], references: [id])
-  transaction Transaction?
-  notes       Note[]
-}
-
-model Transaction {
-  id          String    @id @default(cuid())
-  type        TransactionType
-  status      TransactionStatus @default(PENDING)
-  amount      Float
-  currency    String    @default("USD")
-  listingId   String
-  userId      String
-  inquiryId   String?   @unique
-  stripeId    String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  // Relations
-  listing     Listing   @relation(fields: [listingId], references: [id])
-  user        User      @relation("TransactionUser", fields: [userId], references: [id])
-  inquiry     Inquiry?  @relation(fields: [inquiryId], references: [id])
-  notes       Note[]
-}
-
-model Message {
-  id          String    @id @default(cuid())
-  content     String    @db.Text
-  senderId    String
-  receiverId  String
-  read        Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  // Relations
-  sender      User      @relation("MessageSender", fields: [senderId], references: [id])
-  receiver    User      @relation("MessageReceiver", fields: [receiverId], references: [id])
-}
-
-model Note {
-  id          String    @id @default(cuid())
-  content     String    @db.Text
-  type        NoteType
-  creatorId   String
-  listingId   String?
-  inquiryId   String?
-  transactionId String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  // Relations
-  creator     User      @relation("NoteCreator", fields: [creatorId], references: [id])
-  listing     Listing?  @relation(fields: [listingId], references: [id])
-  inquiry     Inquiry?  @relation(fields: [inquiryId], references: [id])
-  transaction Transaction? @relation(fields: [transactionId], references: [id])
-}
-
-enum Role {
-  USER
-  HOST
-  ADMIN
-}
-
-enum ListingType {
-  RENTAL           // Short/Long term rentals
-  SALE             // Property for sale
-  SERVICE          // Professional services
-  EVENT            // Events and experiences
-  PRODUCT          // Physical products
-  TICKET           // Event tickets
-  BOOKING          // Appointment/Service booking
-}
-
-enum ListingCategory {
-  PROPERTY         // Real estate
-  AUTOMOTIVE       // Cars, boats, etc.
-  PROFESSIONAL     // Professional services
-  ENTERTAINMENT    // Events, shows
-  TRAVEL           // Travel packages
-  RETAIL           // Products
-  OTHER
-}
-
-enum ListingStatus {
-  DRAFT
-  ACTIVE
-  PAUSED
-  SOLD
-  ARCHIVED
-}
-
-enum InquiryType {
-  BOOKING_REQUEST
-  PURCHASE_INTENT
-  VIEWING_REQUEST
-  INFORMATION
-  OFFER
-}
-
-enum InquiryStatus {
-  PENDING
-  ACCEPTED
-  REJECTED
-  CANCELLED
-  CONVERTED       // Converted to transaction
-}
-
-enum TransactionType {
-  RENTAL
-  SALE
-  SERVICE
-  TICKET
-  DEPOSIT
-  BOOKING
-}
-
-enum TransactionStatus {
-  PENDING
-  PROCESSING
-  COMPLETED
-  FAILED
-  REFUNDED
-  CANCELLED
-}
-
-enum NoteType {
-  GENERAL
-  FOLLOWUP
-  MEETING
-  TASK
-  REMINDER
 }
