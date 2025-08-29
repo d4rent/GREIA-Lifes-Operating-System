@@ -16,39 +16,85 @@ export async function POST(request: Request) {
       )
     }
 
+    // Check user's verification status
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      include: {
+        professionalInfo: true
+      }
+    })
+
+    if (!user) {
+      return NextResponse.json(
+        { message: 'User not found' },
+        { status: 404 }
+      )
+    }
+
+    // Verify user has appropriate permissions
+    if (user.verificationStatus !== 'VERIFIED') {
+      return NextResponse.json(
+        { message: 'Professional verification required to create listings' },
+        { status: 403 }
+      )
+    }
+
+    // Check if license is expired
+    if (user.professionalInfo && new Date(user.professionalInfo.licenseExpiry) < new Date()) {
+      return NextResponse.json(
+        { message: 'Professional license has expired' },
+        { status: 403 }
+      )
+    }
+
     const body = await request.json()
     const {
+      type,
       title,
       description,
-      type,
-      category,
       price,
       currency,
       location,
+      features,
       images,
-      features
+      category
     } = body
 
     // Validate required fields
-    if (!title || !description || !type || !category || !price) {
+    if (!type || !title || !price || !currency || !location) {
       return NextResponse.json(
         { message: 'Missing required fields' },
         { status: 400 }
       )
     }
 
-    // Create the listing
+    // Validate listing type based on user role
+    const allowedTypes = {
+      AGENT: ['RENTAL', 'SALE'],
+      BROKER: ['RENTAL', 'SALE'],
+      PROPERTY_MANAGER: ['RENTAL', 'SERVICE'],
+      SERVICE_PROVIDER: ['SERVICE']
+    }
+
+    const userRole = user.role as keyof typeof allowedTypes
+    if (!allowedTypes[userRole]?.includes(type)) {
+      return NextResponse.json(
+        { message: 'Unauthorized listing type for your role' },
+        { status: 403 }
+      )
+    }
+
     const listing = await prisma.listing.create({
       data: {
+        type,
         title,
         description,
-        type,
-        category,
-        price: parseFloat(price),
+        price,
         currency,
         location,
-        images,
         features,
+        images,
+        category,
         ownerId: session.user.id,
         status: 'ACTIVE'
       }
@@ -73,12 +119,10 @@ export async function GET(request: Request) {
     const maxPrice = searchParams.get('maxPrice')
     const location = searchParams.get('location')
     const ownerId = searchParams.get('ownerId')
+    const status = searchParams.get('status')
 
     // Build filter conditions
-    const where: any = {
-      status: 'ACTIVE'
-    }
-
+    const where: any = { status: status || 'ACTIVE' }
     if (type) where.type = type
     if (category) where.category = category
     if (location) where.location = { contains: location, mode: 'insensitive' }
@@ -96,7 +140,16 @@ export async function GET(request: Request) {
           select: {
             id: true,
             name: true,
-            image: true
+            email: true,
+            image: true,
+            verificationStatus: true,
+            professionalInfo: {
+              select: {
+                licenseType: true,
+                licenseNumber: true,
+                jurisdiction: true
+              }
+            }
           }
         }
       },
